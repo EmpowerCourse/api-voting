@@ -46,7 +46,42 @@ router.get('/tally', function(req, res, next) {
   });
 });
 
-// GET vote tally
+// GET user vote details
+router.get('/who_voted_for_what', function(req, res, next) {
+  Vote.find().sort('api_id').exec(function(err, votes) {
+    if (err) return next(err);
+    var results = [];
+    for(var i=0; i<votes.length; i++) {
+      results.push({api_id: votes[i].api_id, voter_id: votes[i].voter_id});
+    }
+    // now lets augment the list with the names of both the apis and the voters
+    var apiNamePromiseArray = results.map(row => new Promise(function(resolve, reject) {
+	    Api.findById(row.api_id, function (err, api) {
+	      if (err) return reject(err);
+	      row.api_name = api.name;
+	      resolve(row);
+	    });
+	  }));
+	Promise.all(apiNamePromiseArray).then(function(results) {
+	    var voterNamePromiseArray = results.map(row => new Promise(function(resolve, reject) {
+		    Voter.findById(row.voter_id, function (err, voter) {
+		      if (err) return reject(err);
+		      row.voter_name = voter.username;
+	          resolve(row);
+		    });
+		  }));
+	    Promise.all(voterNamePromiseArray).then(function(finalResults) {
+	      for(var i=0; i<finalResults.length; i++) {
+	      	delete finalResults[i].api_id;
+	      	delete finalResults[i].voter_id;
+	      }
+          res.json(results);
+        });
+	});
+  });
+});
+
+// GET list of available apis
 router.get('/apis', function(req, res, next) {
   Api.find().exec(function(err, apis) {
     if (err) return next(err);
